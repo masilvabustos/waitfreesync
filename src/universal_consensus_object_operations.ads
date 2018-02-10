@@ -2,31 +2,27 @@
 with CAS_Consensus_Protocol;
 
 generic
-    type Invocation is private;
-    type State is private;
-    type Result is private;
-    with function Apply (inv : Invocation; s : in out State)
-        return Result;
+   type Invocation is private;
+   type State is private;
+   with procedure Apply (inv : Invocation
+                         ; s : in out State);
+   Initialization : Invocation;
 package Universal_Consensus_Object_Operations is
 
-   type Update is
-      record
-         state : Universal_Consensus_Object_Operations.State;
-         result : Universal_Consensus_Object_Operations.Result;
-      end record;
+   package This renames Universal_Consensus_Object_Operations;
 
-   Initial_Update : aliased Update;
-   type Update_Access is access all Update;
-
-   package Update_Consensus_Protocol is
-     new CAS_Consensus_Protocol (Value => Update_Access,
-        undecided => null);
-
-   subtype Consensus_Object is Update_Consensus_Protocol.Consensus_Object;
+   type Update is private;
 
 
-   function Apply (inv : Invocation; current : Consensus_Object) return Update;
-   procedure decide (object : in out Consensus_Object; prefer : Update);
-   procedure reset (object : in out Consensus_Object);
+   function Apply (inv : Invocation; s : State)
+                   return State;
+
+private
+
+   type Update is new State;
+
+
+
+
 
 end Universal_Consensus_Object_Operations;

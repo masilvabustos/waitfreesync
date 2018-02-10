@@ -8,7 +8,7 @@ package body Universal_Consensus_Protocol is
 
    function decide (object : in out Consensus_Object;
     inv : Invocation)
-                   return Result is
+                   return State is
 
       mine, after : Cell;
       Announce : Cell_Array renames object.Announce;
@@ -16,9 +16,11 @@ package body Universal_Consensus_Protocol is
 
       use Cell_Consensus_Protocol;
 
-      function Allocate_Cell (pool : aliased in out Cell_Pool) return Cell;
-      function Allocate_Cell (pool : aliased in out Cell_Pool) return Cell is
+      --function Allocate_Cell return Cell;
+      function Allocate_Cell return Cell is
          cell : Universal_Consensus_Protocol.Cell;
+         pool : access Cell_Pool := object.Pool (P) 'Access
+           ;
       begin
          for C in pool'Range loop
             cell := pool (C) 'Access;
@@ -27,41 +29,43 @@ package body Universal_Consensus_Protocol is
 
          Assert (cell.count = 0, "This shouldn't happen (1).");
 
-         for C in pool'Range loop
-            if
-                pool (C) . count = 0
-            then
-               cell := (if pool (C) . seq . count < cell.seq.count
-                    then pool (C)'Access
-                    else cell);
-            end if;
-         end loop;
-
-         Assert (cell.count = 0, "This shouldn't happen (2).");
-
          return cell;
       end Allocate_Cell;
 
       procedure Reset_Cell (cell : in Universal_Consensus_Protocol.Cell);
-      procedure Reset_Cell (cell : in Universal_Consensus_Protocol.Cell) is
-         use Operations.Update_Consensus_Protocol;
+      procedure Reset_Cell (cell : in Universal_Consensus_Protocol.Cell)
+      is
+         use Update_Consensus_Protocol;
       begin
          reset (cell.after);
-         Operations.reset (cell.update);
+         reset (cell.update);
          cell.count := Atomic_Unsigned (Consensus_Number + 1);
-         cell.seq.count := 0;
+         cell.seq := 0;
       end Reset_Cell;
+
+      procedure decide
+        (object : aliased in out Update_Consensus_Protocol.Consensus_Object;
+         prefer : Operations.State)
+      is
+
+         procedure decide is new Update_Consensus_Protocol.decide (P => P);
+      begin
+        decide (object, prefer);
+      end decide;
+
+      use Update_Consensus_Protocol;
+
 
    begin
 
-      mine := Allocate_Cell (pool.all);
+      mine := Allocate_Cell;
       Reset_Cell (mine);
       mine.inv := inv;
 
       Announce (P) := mine;
 
       for Q in Process loop
-         Head (P) := (if Head (Q).seq.count > Head (P).seq.count then Head (Q)
+         Head (P) := (if Head (Q).seq > Head (P).seq then Head (Q)
                     else Head (P));
       end loop;
 
@@ -71,25 +75,25 @@ package body Universal_Consensus_Protocol is
             head : Cell renames object.Head (P);
          begin
 
-            exit when Announce (P).seq.count /= 0;
+            exit when Announce (P).seq /= 0;
 
-            help := Announce (head.seq.next);
-            prefer := (if help.seq.count = 0
+            help := Announce (Process'Val(head.seq mod Consensus_Number));
+            prefer := (if help.seq = 0
                 then help
                 else Announce (P));
 
             after := decide (head.after, prefer);
 
-            Operations.decide (after.update, Apply (after.inv, head.update));
+            decide (after.update, Apply (after.inv, get_value(head.update)));
             after.before := head;
-            after.seq    := Sequence'(head.seq.count + 1, head.seq.next + 1);
+            after.seq    := head.seq + 1;
          end;
 
             Head (P) := after;
 
       end loop;
 
-      Assert (Announce (P) . seq . count /= 0, "Protocol didn't work.");
+      Assert (Announce (P) . seq /= 0, "Protocol didn't work.");
 
       Head (P) := Announce (P);
 
@@ -99,22 +103,31 @@ package body Universal_Consensus_Protocol is
          for distance in 1 .. Consensus_Number + 1 loop
             cell := cell.before;
             Decrement (cell.count);
-
          end loop;
-         exception
-         when Constraint_Error =>
-            Put_Line ("constraint error");
-            raise;
       end;
 
-      return Head (P).update.value.result;
+      return get_value(Head (P).update);
 
    end decide;
 
+
+
+
 begin
-   Initial_Cell_Record.seq := Sequence'(1, Process'First);
-   Initial_Cell_Record.update.value := Operations.Initial_Update'Access;
+   Initial_Cell_Record.seq := 1;
+
    Initial_Cell_Record.count := Atomic_Unsigned (Consensus_Number + 1);
    Initial_Cell_Record.before := Initial_Cell_Record'Access;
+
+   declare
+      use Operations;
+      procedure decide
+      is new Update_Consensus_Protocol.decide (P => Process'First);
+   begin
+      decide (Initial_Cell_Record.update,
+                     Apply(Initialization,
+                       Initial_Cell_Record.update.prefer (Process'First)));
+   end;
+
 
 end Universal_Consensus_Protocol;
