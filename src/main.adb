@@ -115,7 +115,7 @@ procedure Main is
        Initialization => Invocation'(Operation => Init));
 
    package Queue_Protocol is new Universal_Consensus_Protocol
-        (Process => Process,
+        (Process => Main.Process,
         Operations => Queue_Operations);
 
    use Ada.Text_IO;

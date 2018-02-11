@@ -121,12 +121,13 @@ begin
 
    declare
       use Operations;
-      procedure decide
-      is new Update_Consensus_Protocol.decide (P => Process'First);
+--      procedure decide
+--      is new Update_Consensus_Protocol.decide (P => Process'First);
    begin
-      decide (Initial_Cell_Record.update,
-                     Apply(Initialization,
-                       Initial_Cell_Record.update.prefer (Process'First)));
+  --    decide (Initial_Cell_Record.update,
+    --                 Apply(Initialization,
+  --                 Initial_Cell_Record.update.prefer (Process'First)));
+  null;
    end;
 
 

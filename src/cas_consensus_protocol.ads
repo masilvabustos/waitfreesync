@@ -45,19 +45,19 @@ package CAS_Consensus_Protocol is
 
    generic
       type Designated;
-      type Value is access Designated;
+      type Value is access all Designated;
    package Access_Consensus_Protocol is
 
-      package CAS is new Compare_And_Swap (Value => Long_Integer);
+      package Consensus is new Compare_And_Swap (Value => Long_Integer);
 
-      subtype Consensus_Object is CAS.Object;
+     -- subtype Consensus_Object is CAS.Object;
 
-      function decide (object : in out Consensus_Object; prefer : Value)
+      function decide (object : in out Consensus.Object; prefer : access Designated)
                        return Value;
-      function get_value (object : Consensus_Object)
+      function get_value (object : Consensus.Object)
                           return Value;
 
-      procedure reset (object : in out Consensus_Object);
+      procedure reset (object : in out Consensus.Object);
 
    end Access_Consensus_Protocol;
 
@@ -79,7 +79,7 @@ package CAS_Consensus_Protocol is
 
       type Consensus_Object
       is limited record
-         r : Decision.Consensus_Object ;
+         r : Decision.Consensus.Object ;
          prefer : Prefer_Array;
       end record;
 

@@ -87,16 +87,16 @@ package body CAS_Consensus_Protocol is
 
       bottom : constant Long_Integer := To_Long_Integer(Value'(null));
 
-      function decide (object : in out Consensus_Object; prefer : Value)
+      function decide (object : in out Consensus.Object; prefer : access Designated)
                        return Value is
 
-         val : Long_Integer := To_Long_Integer(prefer);
+         val : Long_Integer := To_Long_Integer(Value(prefer));
       begin
          object.compare_and_swap(bottom, val);
          return To_Value(val);
       end decide;
 
-      function get_value (object : Consensus_Object)
+      function get_value (object : Consensus.Object)
                           return Value
       is
       begin
@@ -104,7 +104,7 @@ package body CAS_Consensus_Protocol is
       end get_value;
 
 
-      procedure reset (object : in out Consensus_Object)
+      procedure reset (object : in out Consensus.Object)
       is
       begin
          object.set(bottom);
@@ -117,14 +117,14 @@ package body CAS_Consensus_Protocol is
 
       procedure decide (object : aliased in out Consensus_Object; prefer : Value)
       is
-         --val : Value renames object.prefer (P);
-         --y : access Value := object.prefer (P) 'Access;
-         --use Decision;
-         --Data : access Value;
+         val : Value renames object.prefer (Process'First);
+         y : access Value := object.prefer (Process'First) 'Access;
+         use Decision;
+         Data : access Value;
 
       begin
-         --val := prefer;
-         -- Data := decide(object.r, y);
+         val := prefer;
+         Data := decide(object.r, object.prefer (Process'First) 'Access);
          null;
       end decide;
 
