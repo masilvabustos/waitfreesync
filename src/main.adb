@@ -103,6 +103,8 @@ procedure Main is
                   s.result := Main.Result'(Queue_DeqOk, val);
                end;
             end if;
+         when others =>
+            raise Program_Error;
       end case;
 
    end Apply;
@@ -132,9 +134,7 @@ procedure Main is
    use Integer_IO;
 
    task body Producer is
-      s : State;
-      function decide is new Queue_Protocol.decide
-        (P => Process);
+
    begin
       for i in 1 .. 500 loop
          Put ("Producer ");
@@ -143,11 +143,17 @@ procedure Main is
          Put (i);
          Put_Line ("");
          loop
-            s := decide (Consensus_Queue,
-                Invocation'(Operation => Enqueue,
-                    enq_value => Queue_item'(i, Process)));
-            exit when s.result.status = Queue_EnqOk;
-            --  delay 10.0e-3;
+            declare
+               s : State;
+               function decide is new Queue_Protocol.decide
+                 (P => Process);
+            begin
+               s := decide (Consensus_Queue,
+                            Invocation'(Operation => Enqueue,
+                                        enq_value => Queue_item'(i, Process)));
+               exit when s.result.status = Queue_EnqOk;
+               --  delay 10.0e-3;
+            end;
          end loop;
 
       end loop;
@@ -177,7 +183,7 @@ procedure Main is
             s := decide (Consensus_Queue,
                Invocation'(Operation => Dequeue));
             exit when s.result.status = Queue_DeqOk;
-            --  delay result.10.0e-3;
+            delay 10.0e-3;
          end loop;
          Put ("Consumer ");
          Put (Process);

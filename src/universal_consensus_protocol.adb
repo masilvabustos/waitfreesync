@@ -22,7 +22,7 @@ package body Universal_Consensus_Protocol is
          pool : access Cell_Pool := object.Pool (P) 'Access
            ;
       begin
-         for C in pool'Range loop
+         for C in pool(P)'Range loop
             cell := pool (C) 'Access;
             exit when cell.count = 0;
          end loop;
@@ -43,15 +43,8 @@ package body Universal_Consensus_Protocol is
          cell.seq := 0;
       end Reset_Cell;
 
-      procedure decide
-        (object : aliased in out Update_Consensus_Protocol.Consensus_Object;
-         prefer : Operations.State)
-      is
+      procedure decide is new Update_Consensus_Protocol.decide (P => P);
 
-         procedure decide is new Update_Consensus_Protocol.decide (P => P);
-      begin
-        decide (object, prefer);
-      end decide;
 
       use Update_Consensus_Protocol;
 
@@ -77,7 +70,7 @@ package body Universal_Consensus_Protocol is
 
             exit when Announce (P).seq /= 0;
 
-            help := Announce (Process'Val(head.seq mod Consensus_Number));
+            help := Announce (Process'Val(head.seq mod Consensus_Number + 1));
             prefer := (if help.seq = 0
                 then help
                 else Announce (P));
@@ -121,13 +114,12 @@ begin
 
    declare
       use Operations;
---      procedure decide
---      is new Update_Consensus_Protocol.decide (P => Process'First);
+      procedure decide
+      is new Update_Consensus_Protocol.decide (P => Process'First);
    begin
-  --    decide (Initial_Cell_Record.update,
-    --                 Apply(Initialization,
-  --                 Initial_Cell_Record.update.prefer (Process'First)));
-  null;
+      decide (Initial_Cell_Record.update,
+              Apply(Initialization,
+                Initial_Cell_Record.update.prefer (Process'First)));
    end;
 
 

@@ -52,7 +52,7 @@ package CAS_Consensus_Protocol is
 
      -- subtype Consensus_Object is CAS.Object;
 
-      function decide (object : in out Consensus.Object; prefer : access Designated)
+      function decide (object : in out Consensus.Object; prefer : Value)
                        return Value;
       function get_value (object : Consensus.Object)
                           return Value;

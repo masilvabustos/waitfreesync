@@ -12,12 +12,20 @@ package Universal_Consensus_Protocol is
 
    use System.Atomic_Counters;
 
-   Consensus_Number : constant Standard.Integer
-    := Standard.Integer (Process'Last) - Standard.Integer (Process'First) + 1;
+   Consensus_Number : constant Integer := Process'Pos(Process'Last);
    use Operations;
    
+   subtype Private_Pool_Index 
+   is Integer range 1 .. Consensus_Number*(Consensus_Number + 1);
+   
    type Cell_Record;
-   type Cell is access all Cell_Record;
+   type Cell is 
+      record
+         p : Process;
+         i : Private_Pool_Index;
+      end record;
+   pragma Compile_Time_Error(Cell'Size > 64, "Oh, oh.");
+   
    
    package Cell_Consensus_Protocol 
    is new CAS_Consensus_Protocol.Access_Consensus_Protocol 
@@ -42,14 +50,13 @@ package Universal_Consensus_Protocol is
 
    type Cell_Array is array (Process) of Cell
      with Volatile => True;
-   type Cell_Pool is array (1 .. Consensus_Number**2) of aliased Cell_Record;
-   type Pool_Array is array (Process) of aliased Cell_Pool;
+   type Cell_Pool is array (Process, Private_Pool_Index) of aliased Cell_Record;
 
    type Consensus_Object is
    limited record
       Announce : Cell_Array := (others => Initial_Cell_Record'Access);
       Head     : Cell_Array := (others => Initial_Cell_Record'Access);
-      Pool     : Pool_Array := (others => 
+      Pool     : Cell_Pool := (others => 
                                   (others => 
                                      Cell_Record'(
                                        count => 0,
