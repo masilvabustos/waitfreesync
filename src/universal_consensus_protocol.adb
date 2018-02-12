@@ -6,7 +6,7 @@ with Ada.Text_IO; use Ada.Text_IO;
 
 package body Universal_Consensus_Protocol is
 
-   function decide (object : in out Consensus_Object;
+   function decide (object : aliased in out Consensus_Object;
     inv : Invocation)
                    return State is
 
@@ -16,14 +16,13 @@ package body Universal_Consensus_Protocol is
 
       use Cell_Consensus_Protocol;
 
-      --function Allocate_Cell return Cell;
+      function Allocate_Cell return Cell;
       function Allocate_Cell return Cell is
          cell : Universal_Consensus_Protocol.Cell;
-         pool : access Cell_Pool := object.Pool (P) 'Access
-           ;
+
       begin
-         for C in pool(P)'Range loop
-            cell := pool (C) 'Access;
+         for I in object.Pool'Range(2) loop
+            cell := object.Pool (P, I) 'Access;
             exit when cell.count = 0;
          end loop;
 

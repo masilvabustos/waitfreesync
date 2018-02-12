@@ -74,8 +74,13 @@ procedure Main is
                     ; s : in out State
                     )
    is
+      x : Invocation := inv;
    begin
-      case inv.Operation is
+      if not x.Operation'Valid then
+         x := Invocation'(Operation => Nop);
+      end if;
+
+      case x.Operation is
          when Nop =>
             null;
          when Init =>
@@ -103,8 +108,6 @@ procedure Main is
                   s.result := Main.Result'(Queue_DeqOk, val);
                end;
             end if;
-         when others =>
-            raise Program_Error;
       end case;
 
    end Apply;
@@ -122,7 +125,7 @@ procedure Main is
 
    use Ada.Text_IO;
 
-   Consensus_Queue : Queue_Protocol.Consensus_Object;
+   Consensus_Queue : aliased Queue_Protocol.Consensus_Object;
 
    task type Producer (Process : Main.Process) is
    end Producer;
@@ -152,7 +155,7 @@ procedure Main is
                             Invocation'(Operation => Enqueue,
                                         enq_value => Queue_item'(i, Process)));
                exit when s.result.status = Queue_EnqOk;
-               --  delay 10.0e-3;
+               delay 10.0e-3;
             end;
          end loop;
 
@@ -202,12 +205,12 @@ procedure Main is
          Put_Line (Ada.Exceptions.Exception_Information (x));
    end Consumer;
 
-   cons : Consumer (Process => 1);
+   --cons : Consumer (Process => 1);
    prod : Producer (Process => 2);
-   c2 : Consumer (Process => 3);
-   p2 : Producer (Process => 4);
-   c3 : Consumer (Process => 5);
-   p3 : Producer (Process => 6);
+   --c2 : Consumer (Process => 3);
+   --p2 : Producer (Process => 4);
+   --c3 : Consumer (Process => 5);
+   --p3 : Producer (Process => 6);
 
 
 

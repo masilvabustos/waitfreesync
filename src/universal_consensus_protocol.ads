@@ -19,11 +19,14 @@ package Universal_Consensus_Protocol is
    is Integer range 1 .. Consensus_Number*(Consensus_Number + 1);
    
    type Cell_Record;
-   type Cell is 
+   type Cell is access all Cell_Record;
+   type Cell_TATA is 
       record
          p : Process;
          i : Private_Pool_Index;
-      end record;
+      end record
+     with Pack => True;
+   
    pragma Compile_Time_Error(Cell'Size > 64, "Oh, oh.");
    
    
@@ -66,7 +69,7 @@ package Universal_Consensus_Protocol is
    generic
     P : Process;
    function decide (
-    object : in out Consensus_Object;
+    object : aliased in out Consensus_Object;
     inv : Invocation)
                    return State;
 
