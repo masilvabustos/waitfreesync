@@ -41,7 +41,7 @@ package Universal_Consensus_Protocol is
 
    type Cell_Record is record
       seq    : Natural := 0;
-      after  : Cell_Consensus_Protocol.Consensus.Object;
+      after  : Cell_Consensus_Protocol.Consensus_Object;
       inv    : Invocation;
       update : aliased Update_Consensus_Protocol.Consensus_Object;
       --  GC information

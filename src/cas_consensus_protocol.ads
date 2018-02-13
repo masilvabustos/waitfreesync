@@ -48,16 +48,28 @@ package CAS_Consensus_Protocol is
       type Value is access all Designated;
    package Access_Consensus_Protocol is
 
-      package Consensus is new Compare_And_Swap (Value => Long_Integer);
+      --package Consensus is new Compare_And_Swap (Value => Long_Integer);
+       function To_Long_Integer
+      is new Ada.Unchecked_Conversion (Source => Value, Target => Long_Integer);
+
+      protected type Consensus_Object
+        with Lock_Free => True
+      is
+         procedure decide(prefer : in out Long_Integer);
+         procedure reset;
+         function get return Long_Integer;
+      private
+         value : Long_Integer := To_Long_Integer(Access_Consensus_Protocol.Value'(null));
+      end Consensus_Object;
 
      -- subtype Consensus_Object is CAS.Object;
 
-      function decide (object : in out Consensus.Object; prefer : Value)
+      function decide (object : in out Consensus_Object; prefer : Value)
                        return Value;
-      function get_value (object : Consensus.Object)
+      function get_value (object : Consensus_Object)
                           return Value;
 
-      procedure reset (object : in out Consensus.Object);
+      procedure reset (object : in out Consensus_Object);
 
    end Access_Consensus_Protocol;
 
@@ -79,7 +91,7 @@ package CAS_Consensus_Protocol is
 
       type Consensus_Object
       is limited record
-         r : Decision.Consensus.Object ;
+         r : Decision.Consensus_Object ;
          prefer : Prefer_Array;
       end record;
 

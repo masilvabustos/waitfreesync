@@ -80,24 +80,53 @@ package body CAS_Consensus_Protocol is
 
    package body Access_Consensus_Protocol is
 
-      function To_Long_Integer
-      is new Ada.Unchecked_Conversion (Source => Value, Target => Long_Integer);
+
 
       function To_Value
       is new Ada.Unchecked_Conversion (Source => Long_Integer, Target => Value);
 
       bottom : constant Long_Integer := To_Long_Integer(Value'(null));
 
-      function decide (object : in out Consensus.Object; prefer : Value)
+      protected body Consensus_Object
+      is
+         procedure decide (prefer : in out Long_Integer)
+         is
+         begin
+
+            if
+              value = bottom
+            then
+               value := prefer;
+            else
+               prefer := value;
+            end if;
+         end decide;
+
+         procedure reset
+         is
+         begin
+            value := bottom;
+         end reset;
+
+         function get return Long_Integer
+         is
+         begin
+            return value;
+         end get;
+      end Consensus_Object;
+
+
+
+      function decide (object : in out Consensus_Object; prefer : Value)
                        return Value is
 
          val : Long_Integer := To_Long_Integer(prefer);
       begin
-         object.compare_and_swap(bottom, val);
+         object.decide(val);
          return To_Value(val);
       end decide;
 
-      function get_value (object : Consensus.Object)
+      function get_value (object : Consensus_Object)
                           return Value
       is
       begin
@@ -105,10 +134,10 @@ package body CAS_Consensus_Protocol is
       end get_value;
 
 
-      procedure reset (object : in out Consensus.Object)
+      procedure reset (object : in out Consensus_Object)
       is
       begin
-         object.set(bottom);
+         object.reset;
       end reset;
 
 

@@ -205,12 +205,12 @@ procedure Main is
          Put_Line (Ada.Exceptions.Exception_Information (x));
    end Consumer;
 
-   --cons : Consumer (Process => 1);
+   cons : Consumer (Process => 1);
    prod : Producer (Process => 2);
-   --c2 : Consumer (Process => 3);
-   --p2 : Producer (Process => 4);
-   --c3 : Consumer (Process => 5);
-   --p3 : Producer (Process => 6);
+   c2 : Consumer (Process => 3);
+   p2 : Producer (Process => 4);
+   c3 : Consumer (Process => 5);
+   p3 : Producer (Process => 6);
 
 
 
