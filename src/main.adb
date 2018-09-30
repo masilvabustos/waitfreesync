@@ -1,15 +1,19 @@
 
 with Universal_Consensus_Protocol;
 with Universal_Consensus_Object_Operations;
+with Universal_Consensus_Traits;
 
 with Ada.Text_IO;
 with Ada.Assertions;
 with Ada.Exceptions;
 
+with System;
+use System;
+with System.Storage_Elements;
 
 procedure Main is
 
-   type Process is range 1 .. 10;
+   type Process is range -1 .. 10;
    Queue_size : constant Positive := 10;
    type Queue_elem is mod Queue_size with Default_Value => 0;
 
@@ -121,11 +125,12 @@ procedure Main is
 
    package Queue_Protocol is new Universal_Consensus_Protocol
         (Process => Main.Process,
-        Operations => Queue_Operations);
+         Operations => Queue_Operations,
+        Policy => Universal_Consensus_Traits.GENERAL);
 
    use Ada.Text_IO;
 
-   Consensus_Queue : aliased Queue_Protocol.Consensus_Object;
+   --Consensus_Queue : aliased Queue_Protocol.Consensus_Object;
 
    task type Producer (Process : Main.Process) is
    end Producer;
@@ -140,18 +145,15 @@ procedure Main is
 
    begin
       for i in 1 .. 500 loop
-         Put ("Producer ");
-         Put (Process);
-         Put (": ");
-         Put (i);
-         Put_Line ("");
+         Put_Line ("Producer " & Integer'Image (Main.Process'Pos (Process)) & ": " & Integer'Image (i));
+
          loop
             declare
                s : State;
                function decide is new Queue_Protocol.decide
                  (P => Process);
             begin
-               s := decide (Consensus_Queue,
+               s := decide (
                             Invocation'(Operation => Enqueue,
                                         enq_value => Queue_item'(i, Process)));
                exit when s.result.status = Queue_EnqOk;
@@ -183,18 +185,14 @@ procedure Main is
       Put_Line ("Consumer started.");
       for n in 1 .. 500 loop
          loop
-            s := decide (Consensus_Queue,
+            s := decide (
                Invocation'(Operation => Dequeue));
             exit when s.result.status = Queue_DeqOk;
             delay 10.0e-3;
          end loop;
-         Put ("Consumer ");
-         Put (Process);
-         Put (": from ");
-         Put (s.result.value.owner);
-         Put (" => ");
-         Put (s.result.value.value);
-         Put_Line ("");
+         Put_Line ("Consumer " & Integer'Image(Main.Process'Pos(Process)) & ": from"
+              & Integer'Image (Main.Process'Pos(s.result.value.owner))
+             & " => " & Integer'Image (s.result.value.value));
 
       end loop;
 
@@ -214,7 +212,7 @@ procedure Main is
 
 
 
+
 begin
    Put_Line ("Hello, world!");
-
 end Main;
