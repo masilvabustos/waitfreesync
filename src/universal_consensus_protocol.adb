@@ -6,30 +6,102 @@ with Ada.Text_IO; use Ada.Text_IO;
 
 package body Universal_Consensus_Protocol is
 
-   function decide (object : aliased in out Consensus_Object;
+   protected body Compact_Cell_Fields
+   is
+      procedure Decrement_Count
+      is
+      begin
+
+         register := register - 1;
+      end Decrement_Count;
+
+      function Count return Natural
+      is
+      begin
+         return register mod (Consensus_Number + 3);
+      end Count;
+
+
+      procedure Decide_After(prefer : in out Integer)
+      is
+      begin
+         if register mod (Consensus_Number + 3) = Consensus_Number + 2
+         then
+           register
+             := register - 1 + Integer (prefer) * (Consensus_Number + 3);
+         else
+            prefer := (register / (Consensus_Number + 3));
+         end if;
+      end Decide_After;
+
+
+   end Compact_Cell_Fields;
+
+  procedure Allocate_From_Subpool (
+                                   Pool : in out Cell_Pool;
+                                   Storage_Address : out Address;
+                                   Size_In_Storage_Elements : in Storage_Elements.Storage_Count;
+                                   Alignment : in Storage_Elements.Storage_Count;
+                                   Subpool : in not null Subpool_Handle)
+   is
+      Handle : Private_Pool_Handle := Private_Pool_Handle (Subpool);
+   begin
+      case Policy is
+         when GENERAL =>
+            declare
+               N : constant Cell_Record_Pool_Index
+                 := Cell_Record_Pool_Index (Consensus_Number);
+               L : constant Cell_Record_Pool_Index
+                 := N*(N +1);
+               S : constant Cell_Record_Pool_Index
+                 := Process'Pos (Handle.P) - Process'Pos (Process'First);
+               subtype X is
+                 Cell_Record_Pool_Index range
+                    S * L ..  (S+1) * L - 1;
+            begin
+               for I in X'Range loop
+                  Storage_Address := UCO.Pool(I) 'Address;
+                  exit when UCO.Pool(I).count = 0;
+               end loop;
+               Assert (UCO.Pool(X'Last).count = 0, "Did not find cell. This shouldn't happen (1).");
+            end;
+         when LIFO =>
+            null;
+      end case;
+
+
+
+
+   end Allocate_From_Subpool;
+
+   function Pool_of_Subpool
+     (Subpool : not null Subpool_Handle)
+      return access Root_Storage_Pool_With_Subpools'Class
+   is
+   begin
+      return UCO.My_Cell_Pool'Access;
+   end Pool_of_Subpool;
+
+
+   function Create_Subpool (Pool : in out Cell_Pool)
+                              return not null Subpool_Handle
+   is
+   begin
+
+      raise Storage_Error; --All subpools are created statically.
+      return Default_Subpool_For_Pool (Pool);
+
+   end Create_Subpool;
+
+
+   function decide (
     inv : Invocation)
                    return State is
 
       mine, after : Cell;
-      Announce : Cell_Array renames object.Announce;
-      Head : Cell_Array renames object.Head;
+
 
       use Cell_Consensus_Protocol;
-
-      function Allocate_Cell return Cell;
-      function Allocate_Cell return Cell is
-         cell : Universal_Consensus_Protocol.Cell;
-
-      begin
-         for I in object.Pool'Range(2) loop
-            cell := object.Pool (P, I) 'Access;
-            exit when cell.count = 0;
-         end loop;
-
-         Assert (cell.count = 0, "This shouldn't happen (1).");
-
-         return cell;
-      end Allocate_Cell;
 
       procedure Reset_Cell (cell : in Universal_Consensus_Protocol.Cell);
       procedure Reset_Cell (cell : in Universal_Consensus_Protocol.Cell)
@@ -50,7 +122,7 @@ package body Universal_Consensus_Protocol is
 
    begin
 
-      mine := Allocate_Cell;
+      mine := new (My_Cell_Pool.Private_Pool(P)'Access) Cell_Record;
       Reset_Cell (mine);
       mine.inv := inv;
 
@@ -64,12 +136,12 @@ package body Universal_Consensus_Protocol is
       for step in 1 .. Consensus_Number + 1 loop
          declare
             help, prefer : Cell;
-            head : Cell renames object.Head (P);
+            head : Cell renames UCO.Head (P);
          begin
 
             exit when Announce (P).seq /= 0;
 
-            help := Announce (Process'Val(head.seq mod Consensus_Number + 1));
+            help := Announce (Process'Val(head.seq mod Consensus_Number + Integer(Process'First)));
             prefer := (if help.seq = 0
                 then help
                 else Announce (P));
@@ -102,7 +174,11 @@ package body Universal_Consensus_Protocol is
 
    end decide;
 
-
+--    procedure Finalize (Object : in out Private_Pool_Record)
+--     is
+--     begin
+--        Put_Line ("Finalizando...");
+--     end Finalize;
 
 
 begin
@@ -120,6 +196,15 @@ begin
               Apply(Initialization,
                 Initial_Cell_Record.update.prefer (Process'First)));
    end;
+
+   for p in Process loop
+      My_Cell_Pool.Private_Pool (p) . P := p;
+    Set_Pool_Of_Subpool
+      (My_Cell_Pool.Private_Pool (p)'Unchecked_Access,
+       My_Cell_Pool);
+   end loop;
+
+
 
 
 end Universal_Consensus_Protocol;
