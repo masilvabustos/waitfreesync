@@ -121,7 +121,7 @@ package Universal_Consensus_Protocol is
    type Cell_Record_Pool_Index is 
      new Natural range 
        0 .. (case Policy is 
-                when GENERAL => Consensus_Number**2*(Consensus_Number - 1),
+                when GENERAL => Consensus_Number**2*(Consensus_Number - 1) + 1,
                 when LIFO => Consensus_Number*(Consensus_Number - 1)/2);
    
    type Cell_Record_Pool is array (Cell_Record_Pool_Index) of aliased Cell_Record;
