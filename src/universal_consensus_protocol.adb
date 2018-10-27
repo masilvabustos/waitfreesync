@@ -114,6 +114,13 @@ package body Universal_Consensus_Protocol is
          cell.seq := 0;
       end Reset_Cell;
 
+      procedure Decrement_Reachability (cell : in UCO.Cell)
+      is
+      begin
+         Decrement (cell.count);
+      end Decrement_Reachability;
+
+
       procedure decide is new Update_Consensus_Protocol.decide (P => P);
 
 
@@ -166,7 +173,7 @@ package body Universal_Consensus_Protocol is
       begin
          for distance in 1 .. Consensus_Number + 1 loop
             cell := cell.before;
-            Decrement (cell.count);
+            Decrement_Reachability (cell);
          end loop;
       end;
 
