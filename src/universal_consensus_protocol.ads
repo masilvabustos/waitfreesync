@@ -28,7 +28,7 @@ package Universal_Consensus_Protocol is
 
    use Operations;
    
-   Consensus_Number : constant Positive := Process'Range_Length;
+   Consensus_Number : constant Natural := Process'Range_Length;
    --type Process is new Positive range 1 .. Consensus_Number;
    
 
@@ -113,16 +113,18 @@ package Universal_Consensus_Protocol is
       end record;
   
 
-   Initial_Cell_Record : aliased Cell_Record;
+ 
 
    type Cell_Array is array (Process) of Cell
      with Volatile => True;
 
-   type Cell_Record_Pool_Index is 
-     new Natural range 
-       0 .. (case Policy is 
-                when GENERAL => Consensus_Number**2*(Consensus_Number - 1) + 1,
-                when LIFO => Consensus_Number*(Consensus_Number - 1)/2);
+   subtype Cell_Record_Pool_Index is 
+      Natural range 
+       1 .. (case Policy is 
+               when GENERAL => 
+                 Consensus_Number*(Consensus_Number*(Consensus_Number + 1) + 1),
+                when LIFO => 
+                  Consensus_Number*(Consensus_Number - 1)/2);
    
    type Cell_Record_Pool is array (Cell_Record_Pool_Index) of aliased Cell_Record;
 
@@ -134,10 +136,13 @@ package Universal_Consensus_Protocol is
    
 private
    
+    Pool : aliased Cell_Record_Pool
+     := (others => Cell_Record'(count => 0, others => <>)); 
+   
+   Initial_Cell_Record : Cell_Record renames Pool (Pool'Last);
    Announce : Cell_Array := (others => Initial_Cell_Record'Access);
    Head     : Cell_Array := (others => Initial_Cell_Record'Access);
    
-   Pool : aliased Cell_Record_Pool
-     := (others => Cell_Record'(count => 0, others => <>)); 
+  
 
 end Universal_Consensus_Protocol;

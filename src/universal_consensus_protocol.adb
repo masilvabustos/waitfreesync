@@ -45,25 +45,31 @@ package body Universal_Consensus_Protocol is
                                    Subpool : in not null Subpool_Handle)
    is
       Handle : Private_Pool_Handle := Private_Pool_Handle (Subpool);
+      Cell : UCO.Cell;
    begin
       case Policy is
          when GENERAL =>
             declare
-               N : constant Cell_Record_Pool_Index
-                 := Cell_Record_Pool_Index (Consensus_Number);
+               N : Cell_Record_Pool_Index
+                 renames Consensus_Number;
                L : constant Cell_Record_Pool_Index
                  := N*(N +1);
-               S : constant Cell_Record_Pool_Index
-                 := Process'Pos (Handle.P) - Process'Pos (Process'First);
+               S : constant Integer
+                 :=
+                   + Process'Pos (Handle.P)
+                 - Process'Pos (Process'First);
                subtype X is
                  Cell_Record_Pool_Index range
-                    S * L ..  (S+1) * L - 1;
+                   Cell_Record_Pool_Index'First + S * L
+                     ..  Cell_Record_Pool_Index'First + (S+1) * L ;
             begin
-               for I in X'Range loop
-                  Storage_Address := UCO.Pool(I) 'Address;
-                  exit when UCO.Pool(I).count = 0;
+
+               for I in X loop
+                  Cell := UCO.Pool(I) 'Access;
+                  exit when Cell.count = 0;
                end loop;
-               Assert (UCO.Pool(X'Last).count = 0, "Did not find cell. This shouldn't happen (1).");
+               Assert (Cell.count = 0, "Did not find cell. This shouldn't happen (1).");
+               Storage_Address := Cell.all'Address;
             end;
          when LIFO =>
             null;
@@ -93,6 +99,52 @@ package body Universal_Consensus_Protocol is
 
    end Create_Subpool;
 
+   procedure Reset (cell : in out Cell_Record)
+   is
+      use Cell_Consensus_Protocol;
+      use Update_Consensus_Protocol;
+   begin
+      reset (cell.after);
+      reset (cell.update);
+      cell.count := Atomic_Unsigned (Consensus_Number + 1);
+      cell.seq := 0;
+   end Reset;
+
+   procedure Reset_Cell (cell : in Universal_Consensus_Protocol.Cell)
+   is
+
+   begin
+      Reset (cell.all);
+   end Reset_Cell;
+
+   procedure Set_Reachability (cell : in out Cell_Record; r : Integer)
+   is
+   begin
+      cell.count := Atomic_Unsigned (r);
+   end Set_Reachability;
+
+
+   procedure Decrement_Reachability (cell : in out Cell_Record)
+   is
+   begin
+      Decrement (cell.count);
+
+   end Decrement_Reachability;
+
+   procedure Decrement_Reachability (cell : in UCO.Cell)
+   is
+   begin
+      Decrement_Reachability (cell.all);
+   end Decrement_Reachability;
+
+   procedure Set_Before(cell : in out Cell_Record;
+                        before : Cell_Record_Pool_Index)
+   is
+      pragma Compile_Time_Warning (true, "Set Before not fully implemented.");
+   begin
+      cell.before := Pool (before) 'Access;
+   end Set_Before;
+
 
    function decide (
     inv : Invocation)
@@ -102,24 +154,6 @@ package body Universal_Consensus_Protocol is
 
 
       use Cell_Consensus_Protocol;
-
-      procedure Reset_Cell (cell : in Universal_Consensus_Protocol.Cell);
-      procedure Reset_Cell (cell : in Universal_Consensus_Protocol.Cell)
-      is
-         use Update_Consensus_Protocol;
-      begin
-         reset (cell.after);
-         reset (cell.update);
-         cell.count := Atomic_Unsigned (Consensus_Number + 1);
-         cell.seq := 0;
-      end Reset_Cell;
-
-      procedure Decrement_Reachability (cell : in UCO.Cell)
-      is
-      begin
-         Decrement (cell.count);
-      end Decrement_Reachability;
-
 
       procedure decide is new Update_Consensus_Protocol.decide (P => P);
 
@@ -189,10 +223,20 @@ package body Universal_Consensus_Protocol is
 
 
 begin
-   Initial_Cell_Record.seq := 1;
+   --Initial_Cell_Record.seq := 1;
 
-   Initial_Cell_Record.count := Atomic_Unsigned (Consensus_Number + 1);
-   Initial_Cell_Record.before := Initial_Cell_Record'Access;
+  -- Initial_Cell_Record.count := Atomic_Unsigned (Consensus_Number + 1);
+ --  Initial_Cell_Record.before := Initial_Cell_Record'Access;
+
+   for i in Pool'Last - (Consensus_Number + 1) + 1
+     .. Pool'Last loop
+      Reset (Pool (i));
+      Set_Before (Pool (i), i - 1);
+      Set_Reachability(Pool (i), Consensus_Number + 1 - (Pool'Last - i));
+   end loop;
+
+   Pool(Pool'Last) . seq := 1;
+
 
    declare
       use Operations;
