@@ -49,12 +49,13 @@ procedure Main is
       result : Main.Result;
    end record;
 
-   type TInvocation
-   is tagged record
-      null;
-   end record;
+   package Queue_Operations is
+     new Universal_Consensus_Object_Operations
+       (State => State, Result => Result);
 
-   type Invocation (Operation : Main.Operation := Nop) is
+   type Queue_Invocation (Operation : Main.Operation) is
+   new Queue_Operations.Invocation_Base with
+
       record
          case Operation is
             when Nop =>
@@ -70,21 +71,17 @@ procedure Main is
 
 
 
+   use Queue_Operations;
 
-   procedure Apply (inv : Invocation
-                    ; s : in out State
-                    );
-   procedure Apply (inv : Invocation
-                    ; s : in out State
-                    )
+   function Apply (inv : Queue_Invocation
+                    ; prev : in State;
+                    s : out State
+                    ) return Result
    is
-      x : Invocation := inv;
-   begin
-      if not x.Operation'Valid then
-         x := Invocation'(Operation => Nop);
-      end if;
 
-      case x.Operation is
+   begin
+
+      case inv.Operation is
          when Nop =>
             null;
          when Init =>
@@ -113,20 +110,16 @@ procedure Main is
                end;
             end if;
       end case;
-
+      return s.result;
    end Apply;
 
-   package Queue_Operations is
-       new Universal_Consensus_Object_Operations
-       (State => State,
-       Invocation => Invocation,
-        Apply => Apply,
-       Initialization => Invocation'(Operation => Init));
+   Initialize : aliased Queue_Invocation := (Operation => Init, others => <>);
 
    package Queue_Protocol is new Universal_Consensus_Protocol
         (Process => Main.Process,
          Operations => Queue_Operations,
-        Policy => Universal_Consensus_Traits.GENERAL);
+         Policy => Universal_Consensus_Traits.GENERAL,
+        Initialize => Initialize'Access);
 
    use Ada.Text_IO;
 
@@ -149,14 +142,15 @@ procedure Main is
 
          loop
             declare
-               s : State;
+               r : Result;
                function decide is new Queue_Protocol.decide
                  (P => Process);
+               inv : Invocation
+                 := new Queue_Invocation'(Operation => Enqueue,
+                                          enq_value => Queue_item'(i, Process));
             begin
-               s := decide (
-                            Invocation'(Operation => Enqueue,
-                                        enq_value => Queue_item'(i, Process)));
-               exit when s.result.status = Queue_EnqOk;
+               r := decide (inv);
+               exit when r.status = Queue_EnqOk;
                delay 10.0e-3;
             end;
          end loop;
@@ -177,22 +171,23 @@ procedure Main is
    end Consumer;
 
    task body Consumer is
-      s : State;
+      r : Result;
 
       function decide is new Queue_Protocol.decide
         (P => Process);
+
+
    begin
       Put_Line ("Consumer started.");
       for n in 1 .. 500 loop
          loop
-            s := decide (
-               Invocation'(Operation => Dequeue));
-            exit when s.result.status = Queue_DeqOk;
+            r := decide (new Queue_Invocation'(Operation => Dequeue));
+            exit when r.status = Queue_DeqOk;
             delay 10.0e-3;
          end loop;
          Put_Line ("Consumer " & Integer'Image(Main.Process'Pos(Process)) & ": from"
-              & Integer'Image (Main.Process'Pos(s.result.value.owner))
-             & " => " & Integer'Image (s.result.value.value));
+              & Integer'Image (Main.Process'Pos(r.value.owner))
+             & " => " & Integer'Image (r.value.value));
 
       end loop;
 
