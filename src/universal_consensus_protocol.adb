@@ -3,6 +3,8 @@ with Ada.Assertions;
 use Ada.Assertions;
 
 with Ada.Text_IO; use Ada.Text_IO;
+with Ada.Unchecked_Conversion;
+with Ada.Unchecked_Deallocation;
 
 package body Universal_Consensus_Protocol is
 
@@ -33,7 +35,6 @@ package body Universal_Consensus_Protocol is
             prefer := (register / (Consensus_Number + 3));
          end if;
       end Decide_After;
-
 
    end Compact_Cell_Fields;
 
@@ -68,10 +69,6 @@ package body Universal_Consensus_Protocol is
          when LIFO =>
             null;
       end case;
-
-
-
-
    end Allocate_From_Subpool;
 
    function Pool_of_Subpool
@@ -93,10 +90,90 @@ package body Universal_Consensus_Protocol is
 
    end Create_Subpool;
 
+   package body Update_Consensus_Protocol is
+
+      procedure Free is new Ada.Unchecked_Deallocation (Object => Update, Name => Value);
+
+
+      protected body Consensus_Object
+      is
+         procedure decide (prefer : in out Long_Integer)
+         is
+
+         begin
+            if decision = Undecided then
+               decision := prefer;
+            else
+               prefer := decision;
+            end if;
+         end decide;
+
+         function state return Operations.State
+         is
+         begin
+            return To_Value (decision) . state;
+         end state;
+
+         function result return Operations.Result
+         is
+            x : Value := To_Value (decision) ;
+            r : Operations.Result := x . result;
+         begin
+            return r;
+         end result;
+
+         function value return Value
+         is
+         begin
+            return To_Value(decision);
+         end value;
+
+         procedure reset
+         is
+         begin
+            decision := Undecided;
+         end reset;
+
+
+      end Consensus_Object;
+
+
+
+      procedure reset (object : in out Consensus_Object)
+      is
+      begin
+         object.reset;
+      end reset;
+
+      procedure decide (object : in out Consensus_Object; prefer : Update)
+      is
+         val : Value := new Update'(prefer);
+         decision : Long_Integer := To_Long_Integer (val);
+       begin
+         object.decide(decision);
+         if To_Value(decision) /= val then
+            Free (val);
+         end if;
+
+         end decide;
+
+   end Update_Consensus_Protocol;
+
+   use Update_Consensus_Protocol;
+
+   function Apply (inv : Invocation; s : Operations.State)
+                    return Update
+   is
+   begin
+      return x : Update do
+         x.result := Operations.Apply (inv.all, s, x.state);
+      end return;
+   end Apply;
+
 
    function decide (
     inv : Invocation)
-                   return State is
+                   return Operations.Result is
 
       mine, after : Cell;
 
@@ -123,8 +200,10 @@ package body Universal_Consensus_Protocol is
 
       procedure decide is new Update_Consensus_Protocol.decide (P => P);
 
-
       use Update_Consensus_Protocol;
+
+
+
 
 
    begin
@@ -155,7 +234,7 @@ package body Universal_Consensus_Protocol is
 
             after := decide (head.after, prefer);
 
-            decide (after.update, Apply (after.inv, get_value(head.update)));
+            decide (after.update, Apply (after.inv,  head.update.state));
             after.before := head;
             after.seq    := head.seq + 1;
          end;
@@ -177,7 +256,7 @@ package body Universal_Consensus_Protocol is
          end loop;
       end;
 
-      return get_value(Head (P).update);
+      return Head (P).update.result;
 
    end decide;
 
@@ -198,10 +277,10 @@ begin
       use Operations;
       procedure decide
       is new Update_Consensus_Protocol.decide (P => Process'First);
+      s : State ;
    begin
       decide (Initial_Cell_Record.update,
-              Apply(Initialization,
-                Initial_Cell_Record.update.prefer (Process'First)));
+              Apply(Initialize, s));
    end;
 
    for p in Process loop
