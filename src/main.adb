@@ -46,7 +46,7 @@ procedure Main is
       r : Result;
    end record;
 
-   type Operation is (Nop, Init, Enqueue, Dequeue);
+  -- type Operation is (Nop, Init, Enqueue, Dequeue);
 
    type State is record
       Queue : Main.Queue;
@@ -58,78 +58,82 @@ procedure Main is
      new Universal_Consensus_Object_Operations
        (State => State, Result => Result_Wrapper);
 
-   type Queue_Invocation (Operation : Main.Operation) is
-   new Queue_Operations.Invocation_Base with
-
+   type Enqueue is new Queue_Operations.Invocation_Base with
       record
-         case Operation is
-            when Nop =>
-               null;
-            when Init =>
-               null;
-            when Enqueue =>
-               enq_value : Queue_item;
-            when Dequeue =>
-               null;
-         end case;
-   end record;
+         enq_value : Queue_item;
+      end record;
+
+   function Apply (inv : Enqueue;
+                   s : in out State)
+                   return Result_Wrapper
+   is
+   begin
+      if s.result.status = Queue_Full
+        or (s.last = s.first and s.result.status = Queue_EnqOk)
+      then
+         s.result := Main.Result'(status => Queue_Full);
+      else
+         s.Queue (s.last) := inv.enq_value;
+         s.last := s.last + 1;
+         s.result := Main.Result'(status => Queue_EnqOk);
+      end if;
+      return Result_Wrapper'(r => s.result);
+   end Apply;
+
+   type Dequeue is new Queue_Operations.Invocation_Base
+   with null record;
+
+    function Apply (inv : Dequeue;
+                   s : in out State)
+                   return Result_Wrapper
+   is
+   begin
+      if s.result.status = Queue_Empty
+        or (s.last = s.first and s.result.status = Queue_DeqOk)
+      then
+         s.result := Main.Result'(status => Queue_Empty);
+      else
+         declare
+            val : constant Queue_item := s.Queue (s.first);
+         begin
+            s.first  := s.first + 1;
+            s.result := Main.Result'(Queue_DeqOk, val);
+         end;
+      end if;
+      return Result_Wrapper'(r => s.result);
+   end Apply;
+
+
+   type Initialize is new Queue_Operations.Invocation_Base
+   with null record;
+
+   function Apply (inv : Initialize;
+                   s : in out State)
+                   return Result_Wrapper
+   is
+   begin
+      s := State'(others => <>);
+      return Result_Wrapper'(r => s.result);
+   end Apply;
+
+
+
+
+
 
 
 
    use Queue_Operations;
 
-   function Apply (inv : Queue_Invocation;
-                    s : in out State
-                    ) return Result_Wrapper
-   is
 
-   begin
 
-      case inv.Operation is
-         when Nop =>
-            null;
-         when Init =>
-            s := State'(others => <>);
-         when Enqueue =>
-            if s.result.status = Queue_Full
-              or (s.last = s.first and s.result.status = Queue_EnqOk)
-            then
-               s := s;
-               s.result := Main.Result'(status => Queue_Full);
-            else
-               s.Queue := s.Queue;
-               s.Queue (s.last) := inv.enq_value;
-               s.last := s.last + 1;
-               s.first := s.first;
-               s.result := Main.Result'(status => Queue_EnqOk);
-            end if;
-         when Dequeue =>
-            if s.result.status = Queue_Empty
-              or (s.last = s.first and s.result.status = Queue_DeqOk)
-            then
-               s := s;
-               s.result := Main.Result'(status => Queue_Empty);
-            else
-               declare
-                  val : constant Queue_item := s.Queue (s.first);
-               begin
-                  s.Queue  := s.Queue;
-                  s.last   := s.last;
-                  s.first  := s.first + 1;
-                  s.result := Main.Result'(Queue_DeqOk, val);
-               end;
-            end if;
-      end case;
-      return Result_Wrapper'(r => s.result);
-   end Apply;
-
-   Initialize : aliased Queue_Invocation := (Operation => Init, others => <>);
+   Init : aliased Initialize;
 
    package Queue_Protocol is new Universal_Consensus_Protocol
         (Process => Main.Process,
          Operations => Queue_Operations,
          Policy => Universal_Consensus_Traits.GENERAL,
-        Initialize => Initialize'Access);
+        Initialize => Init'Access);
 
    use Ada.Text_IO;
 
@@ -156,8 +160,7 @@ procedure Main is
                function decide is new Queue_Protocol.decide
                  (P => Process);
                inv : Invocation
-                 := new Queue_Invocation'(Operation => Enqueue,
-                                          enq_value => Queue_item'(i, Process));
+                 := new Enqueue'(enq_value => Queue_item'(i, Process));
             begin
                r := decide (inv) . r;
                exit when r.status = Queue_EnqOk;
@@ -191,7 +194,7 @@ procedure Main is
       Put_Line ("Consumer started.");
       for n in 1 .. 500 loop
          loop
-            r := decide (new Queue_Invocation'(Operation => Dequeue)) . r;
+            r := decide (new Dequeue) . r;
             exit when r.status = Queue_DeqOk;
             delay 10.0e-3;
          end loop;
