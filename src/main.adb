@@ -78,9 +78,8 @@ procedure Main is
 
    use Queue_Operations;
 
-   function Apply (inv : Queue_Invocation
-                    ; prev : in State;
-                    s : out State
+   function Apply (inv : Queue_Invocation;
+                    s : in out State
                     ) return Result_Wrapper
    is
 
@@ -92,31 +91,31 @@ procedure Main is
          when Init =>
             s := State'(others => <>);
          when Enqueue =>
-            if prev.result.status = Queue_Full
-              or (prev.last = prev.first and prev.result.status = Queue_EnqOk)
+            if s.result.status = Queue_Full
+              or (s.last = s.first and s.result.status = Queue_EnqOk)
             then
-               s := prev;
+               s := s;
                s.result := Main.Result'(status => Queue_Full);
             else
-               s.Queue := prev.Queue;
-               s.Queue (prev.last) := inv.enq_value;
-               s.last := prev.last + 1;
-               s.first := prev.first;
+               s.Queue := s.Queue;
+               s.Queue (s.last) := inv.enq_value;
+               s.last := s.last + 1;
+               s.first := s.first;
                s.result := Main.Result'(status => Queue_EnqOk);
             end if;
          when Dequeue =>
-            if prev.result.status = Queue_Empty
-              or (prev.last = prev.first and prev.result.status = Queue_DeqOk)
+            if s.result.status = Queue_Empty
+              or (s.last = s.first and s.result.status = Queue_DeqOk)
             then
-               s := prev;
+               s := s;
                s.result := Main.Result'(status => Queue_Empty);
             else
                declare
-                  val : constant Queue_item := prev.Queue (prev.first);
+                  val : constant Queue_item := s.Queue (s.first);
                begin
-                  s.Queue  := prev.Queue;
-                  s.last   := prev.last;
-                  s.first  := prev.first + 1;
+                  s.Queue  := s.Queue;
+                  s.last   := s.last;
+                  s.first  := s.first + 1;
                   s.result := Main.Result'(Queue_DeqOk, val);
                end;
             end if;

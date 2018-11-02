@@ -10,8 +10,7 @@ package Universal_Consensus_Object_Operations is
    type Invocation is access all Invocation_Base'Class;
 
    function Apply (inv : Invocation_Base;
-                   prev : in State;
-                   curr : out State)
+                   s : in out State)
                    return Result is abstract;
 
 end Universal_Consensus_Object_Operations;

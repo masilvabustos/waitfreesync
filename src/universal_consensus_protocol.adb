@@ -166,7 +166,8 @@ package body Universal_Consensus_Protocol is
    is
    begin
       return x : Update do
-         x.result := Operations.Apply (inv.all, s, x.state);
+         x.state := s;
+         x.result := Operations.Apply (inv.all, x.state);
       end return;
    end Apply;
 
