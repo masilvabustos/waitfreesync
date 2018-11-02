@@ -27,6 +27,7 @@ procedure Main is
    type Result_Status
    is (Queue_Full, Queue_Empty, Queue_DeqOk, Queue_EnqOk);
 
+
    type Result (status : Result_Status := Queue_Empty) is
       record
          case status is
@@ -41,6 +42,10 @@ procedure Main is
          end case;
       end record;
 
+   type Result_Wrapper is record
+      r : Result;
+   end record;
+
    type Operation is (Nop, Init, Enqueue, Dequeue);
 
    type State is record
@@ -51,7 +56,7 @@ procedure Main is
 
    package Queue_Operations is
      new Universal_Consensus_Object_Operations
-       (State => State, Result => Result);
+       (State => State, Result => Result_Wrapper);
 
    type Queue_Invocation (Operation : Main.Operation) is
    new Queue_Operations.Invocation_Base with
@@ -76,7 +81,7 @@ procedure Main is
    function Apply (inv : Queue_Invocation
                     ; prev : in State;
                     s : out State
-                    ) return Result
+                    ) return Result_Wrapper
    is
 
    begin
@@ -87,30 +92,36 @@ procedure Main is
          when Init =>
             s := State'(others => <>);
          when Enqueue =>
-            if s.result.status = Queue_Full
-              or (s.last = s.first and s.result.status = Queue_EnqOk)
+            if prev.result.status = Queue_Full
+              or (prev.last = prev.first and prev.result.status = Queue_EnqOk)
             then
-              s.result := Main.Result'(status => Queue_Full);
+               s := prev;
+               s.result := Main.Result'(status => Queue_Full);
             else
-               s.Queue (s.last) := inv.enq_value;
-               s.last := s.last + 1;
+               s.Queue := prev.Queue;
+               s.Queue (prev.last) := inv.enq_value;
+               s.last := prev.last + 1;
+               s.first := prev.first;
                s.result := Main.Result'(status => Queue_EnqOk);
             end if;
          when Dequeue =>
-            if s.result.status = Queue_Empty
-              or (s.last = s.first and s.result.status = Queue_DeqOk)
+            if prev.result.status = Queue_Empty
+              or (prev.last = prev.first and prev.result.status = Queue_DeqOk)
             then
+               s := prev;
                s.result := Main.Result'(status => Queue_Empty);
             else
                declare
-                  val : constant Queue_item := s.Queue (s.first);
+                  val : constant Queue_item := prev.Queue (prev.first);
                begin
-                  s.first := s.first + 1;
+                  s.Queue  := prev.Queue;
+                  s.last   := prev.last;
+                  s.first  := prev.first + 1;
                   s.result := Main.Result'(Queue_DeqOk, val);
                end;
             end if;
       end case;
-      return s.result;
+      return Result_Wrapper'(r => s.result);
    end Apply;
 
    Initialize : aliased Queue_Invocation := (Operation => Init, others => <>);
@@ -149,7 +160,7 @@ procedure Main is
                  := new Queue_Invocation'(Operation => Enqueue,
                                           enq_value => Queue_item'(i, Process));
             begin
-               r := decide (inv);
+               r := decide (inv) . r;
                exit when r.status = Queue_EnqOk;
                delay 10.0e-3;
             end;
@@ -181,7 +192,7 @@ procedure Main is
       Put_Line ("Consumer started.");
       for n in 1 .. 500 loop
          loop
-            r := decide (new Queue_Invocation'(Operation => Dequeue));
+            r := decide (new Queue_Invocation'(Operation => Dequeue)) . r;
             exit when r.status = Queue_DeqOk;
             delay 10.0e-3;
          end loop;
