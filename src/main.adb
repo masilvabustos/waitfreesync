@@ -42,10 +42,6 @@ procedure Main is
          end case;
       end record;
 
-   type Result_Wrapper is record
-      r : Result;
-   end record;
-
   -- type Operation is (Nop, Init, Enqueue, Dequeue);
 
    type State is record
@@ -56,7 +52,7 @@ procedure Main is
 
    package Queue_Operations is
      new Universal_Consensus_Object_Operations
-       (State => State, Result => Result_Wrapper);
+       (State => State, Result => Result);
 
    type Enqueue is new Queue_Operations.Invocation_Base with
       record
@@ -65,7 +61,7 @@ procedure Main is
 
    function Apply (inv : Enqueue;
                    s : in out State)
-                   return Result_Wrapper
+                   return Result
    is
    begin
       if s.result.status = Queue_Full
@@ -77,7 +73,7 @@ procedure Main is
          s.last := s.last + 1;
          s.result := Main.Result'(status => Queue_EnqOk);
       end if;
-      return Result_Wrapper'(r => s.result);
+      return s.result;
    end Apply;
 
    type Dequeue is new Queue_Operations.Invocation_Base
@@ -85,7 +81,7 @@ procedure Main is
 
     function Apply (inv : Dequeue;
                    s : in out State)
-                   return Result_Wrapper
+                   return Result
    is
    begin
       if s.result.status = Queue_Empty
@@ -100,7 +96,7 @@ procedure Main is
             s.result := Main.Result'(Queue_DeqOk, val);
          end;
       end if;
-      return Result_Wrapper'(r => s.result);
+      return s.result;
    end Apply;
 
 
@@ -109,11 +105,11 @@ procedure Main is
 
    function Apply (inv : Initialize;
                    s : in out State)
-                   return Result_Wrapper
+                   return Result
    is
    begin
       s := State'(others => <>);
-      return Result_Wrapper'(r => s.result);
+      return s.result;
    end Apply;
 
 
@@ -151,7 +147,7 @@ procedure Main is
    task body Producer is
 
    begin
-      for i in 1 .. 500 loop
+      for i in 1 .. 500000 loop
          Put_Line ("Producer " & Integer'Image (Main.Process'Pos (Process)) & ": " & Integer'Image (i));
 
          loop
@@ -162,7 +158,7 @@ procedure Main is
                inv : Invocation
                  := new Enqueue'(enq_value => Queue_item'(i, Process));
             begin
-               r := decide (inv) . r;
+               r := decide (inv);
                exit when r.status = Queue_EnqOk;
                delay 10.0e-3;
             end;
@@ -192,9 +188,9 @@ procedure Main is
 
    begin
       Put_Line ("Consumer started.");
-      for n in 1 .. 500 loop
+      for n in 1 .. 500000 loop
          loop
-            r := decide (new Dequeue) . r;
+            r := decide (new Dequeue);
             exit when r.status = Queue_DeqOk;
             delay 10.0e-3;
          end loop;

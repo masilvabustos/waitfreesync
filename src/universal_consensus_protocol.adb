@@ -108,25 +108,11 @@ package body Universal_Consensus_Protocol is
             end if;
          end decide;
 
-         function state return Operations.State
-         is
-         begin
-            return To_Value (decision) . state;
-         end state;
-
-         function result return Operations.Result
-         is
-            x : Value := To_Value (decision) ;
-            r : Operations.Result := x . result;
-         begin
-            return r;
-         end result;
-
-         function value return Value
+         function x return Value
          is
          begin
             return To_Value(decision);
-         end value;
+         end x;
 
          procedure reset
          is
@@ -235,7 +221,7 @@ package body Universal_Consensus_Protocol is
 
             after := decide (head.after, prefer);
 
-            decide (after.update, Apply (after.inv,  head.update.state));
+            decide (after.update, Apply (after.inv,  head.update.x.state));
             after.before := head;
             after.seq    := head.seq + 1;
          end;
@@ -257,7 +243,7 @@ package body Universal_Consensus_Protocol is
          end loop;
       end;
 
-      return Head (P).update.result;
+      return Head (P).update.x.result;
 
    end decide;
 

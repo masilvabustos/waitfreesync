@@ -99,9 +99,7 @@ package Universal_Consensus_Protocol is
       protected type Consensus_Object with 
         Lock_Free => True
       is
-         --
-         function state return Operations.State;
-         function result return Operations.Result;
+         function x return Value;
          procedure decide (prefer : in out Long_Integer);
          procedure reset;
       
