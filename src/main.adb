@@ -54,7 +54,7 @@ procedure Main is
      new Universal_Consensus_Object_Operations
        (State => State, Result => Result);
 
-   type Enqueue is new Queue_Operations.Invocation_Base with
+   type Enqueue is new Queue_Operations.Invocation with
       record
          enq_value : Queue_item;
       end record;
@@ -76,7 +76,7 @@ procedure Main is
       return s.result;
    end Apply;
 
-   type Dequeue is new Queue_Operations.Invocation_Base
+   type Dequeue is new Queue_Operations.Invocation
    with null record;
 
     function Apply (inv : Dequeue;
@@ -100,7 +100,7 @@ procedure Main is
    end Apply;
 
 
-   type Initialize is new Queue_Operations.Invocation_Base
+   type Initialize is new Queue_Operations.Invocation
    with null record;
 
    function Apply (inv : Initialize;
@@ -123,13 +123,13 @@ procedure Main is
 
 
 
-   Init : aliased Initialize;
+   Init : Initialize;
 
    package Queue_Protocol is new Universal_Consensus_Protocol
         (Process => Main.Process,
          Operations => Queue_Operations,
          Policy => Universal_Consensus_Traits.GENERAL,
-        Initialize => Init'Access);
+        Initialize => Init);
 
    use Ada.Text_IO;
 
@@ -155,7 +155,7 @@ procedure Main is
                r : Result;
                function decide is new Queue_Protocol.decide
                  (P => Process);
-               inv : Invocation
+               inv : Queue_Protocol.Invocation
                  := new Enqueue'(enq_value => Queue_item'(i, Process));
             begin
                r := decide (inv);
@@ -190,7 +190,7 @@ procedure Main is
       Put_Line ("Consumer started.");
       for n in 1 .. 500000 loop
          loop
-            r := decide (new Dequeue);
+            r := decide (new Dequeue'(others => <>));
             exit when r.status = Queue_DeqOk;
             delay 10.0e-3;
          end loop;

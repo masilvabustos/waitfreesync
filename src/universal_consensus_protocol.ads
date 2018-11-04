@@ -20,7 +20,7 @@ generic
    --Consensus_Number : Positive;
   -- type Invocation is access Operations.Invocation'Class;
    
-   Initialize : Operations.Invocation;
+   Initialize : Operations.Invocation'Class;
    
    Policy : Universal_Consensus_Traits.Policy;
    
@@ -116,12 +116,12 @@ package Universal_Consensus_Protocol is
       
    end Update_Consensus_Protocol;
    
-   subtype Invocation is Operations.Invocation;
+   type Invocation is not null access constant Operations.Invocation'Class;
    
    type Cell_Record is record
       seq    : Natural := 0;
       after  : Cell_Consensus_Protocol.Consensus_Object;
-      inv    : Invocation;
+      inv    : Invocation := Initialize'Access;
       update : aliased Update_Consensus_Protocol.Consensus_Object;
       --  GC information
       count  : aliased Atomic_Unsigned := 0;
@@ -169,6 +169,6 @@ private
    Head     : Cell_Array := (others => Initial_Cell_Record'Access);
    
    Pool : aliased Cell_Record_Pool
-     := (others => Cell_Record'(count => 0, others => <>)); 
+     := (others => Cell_Record'(count => 0, inv => Initialize'Access, others => <>)); 
 
 end Universal_Consensus_Protocol;

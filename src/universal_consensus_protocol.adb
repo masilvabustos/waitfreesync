@@ -267,7 +267,7 @@ begin
       s : State ;
    begin
       decide (Initial_Cell_Record.update,
-              Apply(Initialize, s));
+              Apply(Initialize'Access, s));
    end;
 
    for p in Process loop

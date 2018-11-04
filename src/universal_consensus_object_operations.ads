@@ -6,10 +6,9 @@ generic
    type Result is private;
 package Universal_Consensus_Object_Operations is
 
-   type Invocation_Base is abstract tagged null record;
-   type Invocation is access all Invocation_Base'Class;
+   type Invocation is abstract tagged null record;
 
-   function Apply (inv : Invocation_Base;
+   function Apply (inv : Invocation;
                    s : in out State)
                    return Result is abstract;
 
