@@ -27,6 +27,7 @@ procedure Main is
    type Result_Status
    is (Queue_Full, Queue_Empty, Queue_DeqOk, Queue_EnqOk);
 
+
    type Result (status : Result_Status := Queue_Empty) is
       record
          case status is
@@ -41,7 +42,7 @@ procedure Main is
          end case;
       end record;
 
-   type Operation is (Nop, Init, Enqueue, Dequeue);
+  -- type Operation is (Nop, Init, Enqueue, Dequeue);
 
    type State is record
       Queue : Main.Queue;
@@ -49,84 +50,86 @@ procedure Main is
       result : Main.Result;
    end record;
 
-   type TInvocation
-   is tagged record
-      null;
-   end record;
+   package Queue_Operations is
+     new Universal_Consensus_Object_Operations
+       (State => State, Result => Result);
 
-   type Invocation (Operation : Main.Operation := Nop) is
+   type Enqueue is new Queue_Operations.Invocation with
       record
-         case Operation is
-            when Nop =>
-               null;
-            when Init =>
-               null;
-            when Enqueue =>
-               enq_value : Queue_item;
-            when Dequeue =>
-               null;
-         end case;
-   end record;
+         enq_value : Queue_item;
+      end record;
 
-
-
-
-   procedure Apply (inv : Invocation
-                    ; s : in out State
-                    );
-   procedure Apply (inv : Invocation
-                    ; s : in out State
-                    )
+   function Apply (inv : Enqueue;
+                   s : in out State)
+                   return Result
    is
-      x : Invocation := inv;
    begin
-      if not x.Operation'Valid then
-         x := Invocation'(Operation => Nop);
+      if s.result.status = Queue_Full
+        or (s.last = s.first and s.result.status = Queue_EnqOk)
+      then
+         s.result := Main.Result'(status => Queue_Full);
+      else
+         s.Queue (s.last) := inv.enq_value;
+         s.last := s.last + 1;
+         s.result := Main.Result'(status => Queue_EnqOk);
       end if;
-
-      case x.Operation is
-         when Nop =>
-            null;
-         when Init =>
-            s := State'(others => <>);
-         when Enqueue =>
-            if s.result.status = Queue_Full
-              or (s.last = s.first and s.result.status = Queue_EnqOk)
-            then
-              s.result := Main.Result'(status => Queue_Full);
-            else
-               s.Queue (s.last) := inv.enq_value;
-               s.last := s.last + 1;
-               s.result := Main.Result'(status => Queue_EnqOk);
-            end if;
-         when Dequeue =>
-            if s.result.status = Queue_Empty
-              or (s.last = s.first and s.result.status = Queue_DeqOk)
-            then
-               s.result := Main.Result'(status => Queue_Empty);
-            else
-               declare
-                  val : constant Queue_item := s.Queue (s.first);
-               begin
-                  s.first := s.first + 1;
-                  s.result := Main.Result'(Queue_DeqOk, val);
-               end;
-            end if;
-      end case;
-
+      return s.result;
    end Apply;
 
-   package Queue_Operations is
-       new Universal_Consensus_Object_Operations
-       (State => State,
-       Invocation => Invocation,
-        Apply => Apply,
-       Initialization => Invocation'(Operation => Init));
+   type Dequeue is new Queue_Operations.Invocation
+   with null record;
+
+    function Apply (inv : Dequeue;
+                   s : in out State)
+                   return Result
+   is
+   begin
+      if s.result.status = Queue_Empty
+        or (s.last = s.first and s.result.status = Queue_DeqOk)
+      then
+         s.result := Main.Result'(status => Queue_Empty);
+      else
+         declare
+            val : constant Queue_item := s.Queue (s.first);
+         begin
+            s.first  := s.first + 1;
+            s.result := Main.Result'(Queue_DeqOk, val);
+         end;
+      end if;
+      return s.result;
+   end Apply;
+
+
+   type Initialize is new Queue_Operations.Invocation
+   with null record;
+
+   function Apply (inv : Initialize;
+                   s : in out State)
+                   return Result
+   is
+   begin
+      s := State'(others => <>);
+      return s.result;
+   end Apply;
+
+
+
+
+
+
+
+
+   use Queue_Operations;
+
+
+
+   Init : Initialize;
 
    package Queue_Protocol is new Universal_Consensus_Protocol
         (Process => Main.Process,
          Operations => Queue_Operations,
-        Policy => Universal_Consensus_Traits.GENERAL);
+         Policy => Universal_Consensus_Traits.GENERAL,
+        Initialize => Init);
 
    use Ada.Text_IO;
 
@@ -144,19 +147,19 @@ procedure Main is
    task body Producer is
 
    begin
-      for i in 1 .. 500 loop
+      for i in 1 .. 500000 loop
          Put_Line ("Producer " & Integer'Image (Main.Process'Pos (Process)) & ": " & Integer'Image (i));
 
          loop
             declare
-               s : State;
+               r : Result;
                function decide is new Queue_Protocol.decide
                  (P => Process);
+               inv : Queue_Protocol.Invocation
+                 := new Enqueue'(enq_value => Queue_item'(i, Process));
             begin
-               s := decide (
-                            Invocation'(Operation => Enqueue,
-                                        enq_value => Queue_item'(i, Process)));
-               exit when s.result.status = Queue_EnqOk;
+               r := decide (inv);
+               exit when r.status = Queue_EnqOk;
                delay 10.0e-3;
             end;
          end loop;
@@ -177,22 +180,23 @@ procedure Main is
    end Consumer;
 
    task body Consumer is
-      s : State;
+      r : Result;
 
       function decide is new Queue_Protocol.decide
         (P => Process);
+
+
    begin
       Put_Line ("Consumer started.");
-      for n in 1 .. 500 loop
+      for n in 1 .. 500000 loop
          loop
-            s := decide (
-               Invocation'(Operation => Dequeue));
-            exit when s.result.status = Queue_DeqOk;
+            r := decide (new Dequeue'(others => <>));
+            exit when r.status = Queue_DeqOk;
             delay 10.0e-3;
          end loop;
          Put_Line ("Consumer " & Integer'Image(Main.Process'Pos(Process)) & ": from"
-              & Integer'Image (Main.Process'Pos(s.result.value.owner))
-             & " => " & Integer'Image (s.result.value.value));
+              & Integer'Image (Main.Process'Pos(r.value.owner))
+             & " => " & Integer'Image (r.value.value));
 
       end loop;
 

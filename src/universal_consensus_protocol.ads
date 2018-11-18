@@ -10,6 +10,7 @@ with System.Storage_Elements; use System.Storage_Elements;
 with Universal_Consensus_Traits; use Universal_Consensus_Traits;
 
 with Ada.Finalization;
+with Ada.Unchecked_Conversion;
 
 generic
   type Process is range <>;
@@ -17,6 +18,10 @@ generic
    with package Operations
      is new Universal_Consensus_Object_Operations (<>);
    --Consensus_Number : Positive;
+  -- type Invocation is access Operations.Invocation'Class;
+   
+   Initialize : Operations.Invocation'Class;
+   
    Policy : Universal_Consensus_Traits.Policy;
    
 package Universal_Consensus_Protocol is
@@ -25,24 +30,17 @@ package Universal_Consensus_Protocol is
 
    use System.Atomic_Counters;
    use System.Storage_Pools;
-
-   use Operations;
-   
-   Consensus_Number : constant Natural := Process'Range_Length;
-   --type Process is new Positive range 1 .. Consensus_Number;
    
 
-   
+   Consensus_Number : constant Positive := Process'Range_Length;
+
    type Private_Pool_Record is new Subpools.Root_Subpool with
       record
          P : Process;
       end record;
 
-   --type Invocation is tagged null record;
+
    type Private_Pool_Array is array (Process) of aliased Private_Pool_Record;
-   
-   
-   
    
    type Cell_Pool is 
      new Root_Storage_Pool_With_Subpools with 
@@ -82,15 +80,49 @@ package Universal_Consensus_Protocol is
    is new CAS_Consensus_Protocol.Access_Consensus_Protocol 
      (Designated => Cell_Record, Value => Cell);
    
-   package Update_Consensus_Protocol
-   is new CAS_Consensus_Protocol.Record_Consensus_Protocol
-     (Value => Operations.State, Process => Process);
-     
-
+   package Update_Consensus_Protocol is 
+      
+      type Update is record
+         State  : Operations.State;
+         Result : Operations.Result;
+      end record;
+      
+      type Value is access Update;
+      
+      function To_Long_Integer is 
+        new Ada.Unchecked_Conversion(Source => Value, Target => Long_Integer);
+      
+      function To_Value is
+         new Ada.Unchecked_Conversion(Source => Long_Integer, Target => Value);
+   
+      Undecided : constant Long_Integer := To_Long_Integer(Value'(null));
+      
+      protected type Consensus_Object with 
+        Lock_Free => True
+      is
+         function x return Value;
+         procedure decide (prefer : in out Long_Integer);
+         procedure reset;
+      
+      private
+        
+         decision : Long_Integer;
+      end Consensus_Object;
+      
+      procedure reset(object : in out Consensus_Object);
+      
+      generic
+         P : Process;
+      procedure decide (object : in out Consensus_Object; prefer : Update);
+      
+   end Update_Consensus_Protocol;
+   
+   type Invocation is not null access constant Operations.Invocation'Class;
+   
    type Cell_Record is record
       seq    : Natural := 0;
       after  : Cell_Consensus_Protocol.Consensus_Object;
-      inv    : Invocation;
+      inv    : Invocation := Initialize'Access;
       update : aliased Update_Consensus_Protocol.Consensus_Object;
       --  GC information
       count  : aliased Atomic_Unsigned := 0;
@@ -132,17 +164,21 @@ package Universal_Consensus_Protocol is
    generic
       P : Process;
    function decide (inv : Invocation)
-                    return State;
+                    return Operations.Result;
    
 private
    
     Pool : aliased Cell_Record_Pool
-     := (others => Cell_Record'(count => 0, others => <>)); 
+     := (others => Cell_Record'(count => 0, inv => Initialize'Access, others => <>)); 
    
    Initial_Cell_Record : Cell_Record renames Pool (Pool'Last);
+   
+   
    Announce : Cell_Array := (others => Initial_Cell_Record'Access);
    Head     : Cell_Array := (others => Initial_Cell_Record'Access);
    
-  
+
+   
+
 
 end Universal_Consensus_Protocol;
