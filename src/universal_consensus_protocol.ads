@@ -34,47 +34,11 @@ package Universal_Consensus_Protocol is
 
    Consensus_Number : constant Positive := Process'Range_Length;
 
-   type Private_Pool_Record is new Subpools.Root_Subpool with
-      record
-         P : Process;
-      end record;
-
-
-   type Private_Pool_Array is array (Process) of aliased Private_Pool_Record;
    
-   type Cell_Pool is 
-     new Root_Storage_Pool_With_Subpools with 
-      record
-         Private_Pool : Private_Pool_Array;
-      end record;
-   
-   --procedure Finalize (Object : in out Private_Pool_Record) is null;
-   
-   
-   type Private_Pool_Handle is access all Private_Pool_Record;
-   
-   procedure Allocate_From_Subpool 
-     (Pool : in out Cell_Pool;
-      Storage_Address : out Address;
-      Size_In_Storage_Elements : in Storage_Elements.Storage_Count;
-      Alignment : in Storage_Elements.Storage_Count;
-      Subpool : in not null Subpool_Handle);
-   
-   function Create_Subpool 
-     (Pool : in out Cell_Pool)
-      return not null Subpool_Handle;
-  
-   
-   procedure Deallocate_Subpool 
-     (Pool : in out Cell_Pool;
-      Subpool : in out Subpool_Handle) is null;
-   
-   
-   My_Cell_Pool : aliased Cell_Pool;
 
    type Cell_Record;
    type Cell is access all Cell_Record;
-   for Cell'Storage_Pool use My_Cell_Pool;
+   --for Cell'Storage_Pool use My_Cell_Pool;
    
    package Cell_Consensus_Protocol 
    is new CAS_Consensus_Protocol.Access_Consensus_Protocol 
@@ -147,18 +111,6 @@ package Universal_Consensus_Protocol is
 
  
 
-   type Cell_Array is array (Process) of Cell
-     with Volatile => True;
-
-   subtype Cell_Record_Pool_Index is 
-      Natural range 
-       1 .. (case Policy is 
-               when GENERAL => 
-                 Consensus_Number*(Consensus_Number*(Consensus_Number + 1) + 1),
-                when LIFO => 
-                  Consensus_Number*(Consensus_Number - 1)/2);
-   
-   type Cell_Record_Pool is array (Cell_Record_Pool_Index) of aliased Cell_Record;
 
 
    generic
@@ -168,14 +120,12 @@ package Universal_Consensus_Protocol is
    
 private
    
-    Pool : aliased Cell_Record_Pool
-     := (others => Cell_Record'(count => 0, inv => Initialize'Access, others => <>)); 
-   
-   Initial_Cell_Record : Cell_Record renames Pool (Pool'Last);
+   type Cell_Array is array (Process) of Cell
+     with Volatile => True;
    
    
-   Announce : Cell_Array := (others => Initial_Cell_Record'Access);
-   Head     : Cell_Array := (others => Initial_Cell_Record'Access);
+   Announce : Cell_Array;
+   Head     : Cell_Array;
    
 
    

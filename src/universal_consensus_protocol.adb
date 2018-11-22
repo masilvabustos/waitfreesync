@@ -38,63 +38,6 @@ package body Universal_Consensus_Protocol is
 
    end Compact_Cell_Fields;
 
-  procedure Allocate_From_Subpool (
-                                   Pool : in out Cell_Pool;
-                                   Storage_Address : out Address;
-                                   Size_In_Storage_Elements : in Storage_Elements.Storage_Count;
-                                   Alignment : in Storage_Elements.Storage_Count;
-                                   Subpool : in not null Subpool_Handle)
-   is
-      Handle : Private_Pool_Handle := Private_Pool_Handle (Subpool);
-      Cell : UCO.Cell;
-   begin
-      case Policy is
-         when GENERAL =>
-            declare
-               N : Cell_Record_Pool_Index
-                 renames Consensus_Number;
-               L : constant Cell_Record_Pool_Index
-                 := N*(N +1);
-               S : constant Integer
-                 :=
-                   + Process'Pos (Handle.P)
-                 - Process'Pos (Process'First);
-               subtype X is
-                 Cell_Record_Pool_Index range
-                   Cell_Record_Pool_Index'First + S * L
-                     ..  Cell_Record_Pool_Index'First + (S+1) * L ;
-            begin
-
-               for I in X loop
-                  Cell := UCO.Pool(I) 'Access;
-                  exit when Cell.count = 0;
-               end loop;
-               Assert (Cell.count = 0, "Did not find cell. This shouldn't happen (1).");
-               Storage_Address := Cell.all'Address;
-            end;
-         when LIFO =>
-            null;
-      end case;
-   end Allocate_From_Subpool;
-
-   function Pool_of_Subpool
-     (Subpool : not null Subpool_Handle)
-      return access Root_Storage_Pool_With_Subpools'Class
-   is
-   begin
-      return UCO.My_Cell_Pool'Access;
-   end Pool_of_Subpool;
-
-
-   function Create_Subpool (Pool : in out Cell_Pool)
-                              return not null Subpool_Handle
-   is
-   begin
-
-      raise Storage_Error; --All subpools are created statically.
-      return Default_Subpool_For_Pool (Pool);
-
-   end Create_Subpool;
 
    procedure Reset (cell : in out Cell_Record)
    is
@@ -135,11 +78,11 @@ package body Universal_Consensus_Protocol is
    end Decrement_Reachability;
 
    procedure Set_Before(cell : in out Cell_Record;
-                        before : Cell_Record_Pool_Index)
+                        before : UCO.Cell)
    is
       pragma Compile_Time_Warning (true, "Set Before not fully implemented.");
    begin
-      cell.before := Pool (before) 'Access;
+      cell.before := before;
    end Set_Before;
 
    package body Update_Consensus_Protocol is
@@ -229,7 +172,7 @@ package body Universal_Consensus_Protocol is
 
    begin
 
-      mine := new (My_Cell_Pool.Private_Pool(P)'Access) Cell_Record;
+      mine := new Cell_Record;
       Reset_Cell (mine);
       mine.inv := inv;
 
@@ -289,39 +232,41 @@ package body Universal_Consensus_Protocol is
 
 
 begin
-   --Initial_Cell_Record.seq := 1;
-
-  -- Initial_Cell_Record.count := Atomic_Unsigned (Consensus_Number + 1);
- --  Initial_Cell_Record.before := Initial_Cell_Record'Access;
-
-   for i in Pool'Last - (Consensus_Number + 1) + 1
-     .. Pool'Last loop
-      Reset (Pool (i));
-      Set_Before (Pool (i), i - 1);
-      Set_Reachability(Pool (i), Consensus_Number + 1 - (Pool'Last - i));
-   end loop;
-
-   Pool(Pool'Last) . seq := 1;
-
 
    declare
+      Initial_Cell : Cell := new Cell_Record'(seq    => 1,
+                                    after  => <>,
+                                    inv    => <>,
+                                    update => <>,
+                                    count  => Atomic_Unsigned (Consensus_Number + 1),
+                                    before => <>);
+
+
+      cell : UCO.Cell := Initial_Cell;
+
       use Operations;
       procedure decide
       is new Update_Consensus_Protocol.decide (P => Process'First);
       s : State ;
+
    begin
-      decide (Initial_Cell_Record.update,
+
+      for c in reverse 1 .. (Consensus_Number + 1) - 1 loop
+         cell.before := new Cell_Record'(seq => 1,
+                                         after  => <>,
+                                         inv    => <>,
+                                         update => <>,
+                                         count  => Atomic_Unsigned (c),
+                                         before => <> );
+         cell := cell.before;
+      end loop;
+
+      Announce := (others => Initial_Cell);
+      Head     := (others => Initial_Cell);
+
+      decide (Initial_Cell.update,
               Apply(Initialize'Access, s));
+
    end;
-
-   for p in Process loop
-      My_Cell_Pool.Private_Pool (p) . P := p;
-    Set_Pool_Of_Subpool
-      (My_Cell_Pool.Private_Pool (p)'Unchecked_Access,
-       My_Cell_Pool);
-   end loop;
-
-
-
 
 end Universal_Consensus_Protocol;
