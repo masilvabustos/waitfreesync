@@ -113,14 +113,7 @@ procedure Main is
    end Apply;
 
 
-
-
-
-
-
-
    use Queue_Operations;
-
 
 
    Init : Initialize;
@@ -192,7 +185,7 @@ procedure Main is
          loop
             r := decide (new Dequeue'(others => <>));
             exit when r.status = Queue_DeqOk;
-            delay 10.0e-3;
+            delay 50.0e-4;
          end loop;
          Put_Line ("Consumer " & Integer'Image(Main.Process'Pos(Process)) & ": from"
               & Integer'Image (Main.Process'Pos(r.value.owner))
@@ -215,8 +208,6 @@ procedure Main is
    p3 : Producer (Process => 6);
 
 
-
-
 begin
-   Put_Line ("Hello, world!");
+   Put_Line ("Hello from WaitFreeSync Project rev. 1");
 end Main;
